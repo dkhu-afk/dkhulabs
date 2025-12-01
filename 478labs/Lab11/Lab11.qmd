@@ -1,0 +1,466 @@
+---
+title: "Lab 11"
+author: "Daniel Hu"
+format:
+  html:
+    toc: true
+    toc_float: true
+    embed-resources: true
+execute: 
+  warning: false
+  message: false
+---
+
+```{r}
+library(tidyverse)
+library(stringr)
+library(ggplot2)
+library(dplyr)
+library(nycflights13)
+```
+
+# Example Dataset
+```{r}
+species <- tibble(id = c(1, 2, 3),
+              name = c("Species1", "Species2", "Species3"))
+
+abundance <- tibble(id = c(2, 3, 4),
+              abundance = c(85, 90, 95))
+```
+
+# Perform Joins 
+```{r}
+#left join
+left_join(species, abundance, by = "id")
+
+#inner join
+inner_join(species, abundance, by = "id")
+
+#full join
+full_join(species, abundance, by = "id")
+```
+
+# 19.2 Keys
+## 19.2.1 Primary and foreign keys
+```{r}
+airlines
+airports
+planes
+weather
+```
+
+![foreign key](relational.png)
+## 19.2.2 Checking primary keys
+```{r}
+planes |> 
+  count(tailnum) |> 
+  filter(n > 1)
+
+weather |> 
+  count(time_hour, origin) |> 
+  filter(n > 1)
+
+planes |> 
+  filter(is.na(tailnum))
+
+weather |> 
+  filter(is.na(time_hour) | is.na(origin))
+```
+
+## 19.2.3 Surrogate keys
+```{r}
+flights |> 
+  count(time_hour, carrier, flight) |> 
+  filter(n > 1)
+
+airports |>
+  count(alt, lat) |> 
+  filter(n > 1)
+
+flights2 <- flights |> 
+  mutate(id = row_number(), .before = 1)
+flights2
+```
+
+## 19.2.4 Exercises
+### 19.2.4.1 Exercises
+```{r}
+#We forgot to draw the relationship between weather and airports in Figure 19.1. What is the relationship and how should it appear in the diagram?
+cat("I would just draw a line that is ")
+```
+
+### 19.2.4.2 Exercises
+```{r}
+#weather only contains information for the three origin airports in NYC. If it contained weather records for all airports in the USA, what additional connection would it make to flights?
+```
+
+### 19.2.4.3 Exercises
+```{r}
+#The year, month, day, hour, and origin variables almost form a compound key for weather, but there’s one hour that has duplicate observations. Can you figure out what’s special about that hour?
+```
+
+### 19.2.4.4 Exercises 
+```{r}
+#We know that some days of the year are special and fewer people than usual fly on them (e.g., Christmas eve and Christmas day). How might you represent that data as a data frame? What would be the primary key? How would it connect to the existing data frames?
+```
+
+### 19.2.4.5 Exercises 
+```{r}
+#Draw a diagram illustrating the connections between the Batting, People, and Salaries data frames in the Lahman package. Draw another diagram that shows the relationship between People, Managers, AwardsManagers. How would you characterize the relationship between the Batting, Pitching, and Fielding data frames?
+```
+
+# 19.3 Basic joins
+## 19.3.1 Mutating joins
+```{r}
+flights2 <- flights |> 
+  select(year, time_hour, origin, dest, tailnum, carrier)
+flights2
+
+flights2 |>
+  left_join(airlines)
+
+flights2 |> 
+  left_join(weather |> select(origin, time_hour, temp, wind_speed))
+
+flights2 |> 
+  left_join(planes |> select(tailnum, type, engines, seats))
+
+flights2 |> 
+  filter(tailnum == "N3ALAA") |> 
+  left_join(planes |> select(tailnum, type, engines, seats))
+```
+
+## 19.3.2 Specifying join keys
+```{r}
+flights2 |> 
+  left_join(planes)
+
+flights2 |> 
+  left_join(planes, join_by(tailnum))
+
+flights2 |> 
+  left_join(airports, join_by(dest == faa))
+
+flights2 |> 
+  left_join(airports, join_by(origin == faa))
+```
+
+## 19.3.3 Filtering joins
+```{r}
+airports |> 
+  semi_join(flights2, join_by(faa == origin))
+
+airports |> 
+  semi_join(flights2, join_by(faa == dest))
+
+flights2 |> 
+  anti_join(airports, join_by(dest == faa)) |> 
+  distinct(dest)
+
+flights2 |>
+  anti_join(planes, join_by(tailnum)) |> 
+  distinct(tailnum)
+```
+
+## 19.3.4 Exercises
+### 19.3.4.1 Exercises
+```{r}
+#Find the 48 hours (over the course of the whole year) that have the worst delays. Cross-reference it with the weather data. Can you see any patterns?
+worst48 <- flights %>%
+  filter(!is.na(dep_delay)) %>%
+  group_by(origin, time_hour) %>%
+  summarise(
+    mean_dep_delay = mean(dep_delay),
+    p95_dep_delay  = quantile(dep_delay, 0.95), 
+    n_flights      = n(),
+    .groups = "drop"
+  ) %>%
+  arrange(desc(mean_dep_delay)) %>%
+  slice_head(n = 48)
+
+worst48_weather <- worst48 %>%
+  left_join(
+    weather %>%
+      select(origin, time_hour, temp, dewp, humid, wind_dir, wind_speed,
+             wind_gust, precip, pressure, visib),
+    by = c("origin", "time_hour")
+  )
+
+worst48_weather
+```
+
+### 19.3.4.2 Exercises
+```{r}
+#Imagine you’ve found the top 10 most popular destinations using this code:
+top_dest <- flights2 |>
+  count(dest, sort = TRUE) |>
+  head(10)
+
+#How can you find all flights to those destinations?
+top_dest_flights <- flights2 %>% 
+  semi_join(top_dest, "dest")
+  
+top_dest_flights
+```
+
+### 19.3.4.3 Exercises
+```{r}
+#Does every departing flight have corresponding weather data for that hour?
+no_weather <- flights2 %>%
+  anti_join(weather, by = c("origin", "time_hour"))
+
+no_weather %>% summarise(n = n(), prop = n() / nrow(flights2))
+```
+
+### 19.3.4.4 Exercises
+```{r}
+#What do the tail numbers that don’t have a matching record in planes have in common? (Hint: one variable explains ~90% of the problems.)
+unmatched <- flights2 %>%
+  filter(!is.na(tailnum), tailnum != "") %>%
+  anti_join(planes %>% select(tailnum), by = "tailnum")
+
+unmatched %>%
+  count(carrier, sort = TRUE) %>%
+  mutate(pct = n / sum(n))
+```
+
+### 19.3.4.5 Exercises
+```{r}
+#Add a column to planes that lists every carrier that has flown that plane. You might expect that there’s an implicit relationship between plane and airline, because each plane is flown by a single airline. Confirm or reject this hypothesis using the tools you’ve learned in previous chapters.
+flightscarrier <- flights %>% 
+  filter(!is.na(tailnum), tailnum != "") %>% 
+  distinct(tailnum, carrier) %>% 
+  left_join(airlines, by = "carrier") %>% 
+  group_by(tailnum) %>% 
+  summarize(
+    n_carriers = n(),
+    carriers   = str_c(sort(unique(carrier)), collapse = ", "),
+    carrier_names = str_c(sort(unique(name)), collapse = " | "),
+    .groups = "drop"
+  )
+
+planes_with_carriers <- planes %>%
+  left_join(flightscarrier, by = "tailnum")
+
+planes_with_carriers
+```
+
+### 19.3.4.6 Exercises
+```{r}
+#Add the latitude and the longitude of the origin and destination airport to flights. Is it easier to rename the columns before or after the join?
+ap_origin <- airports %>%
+  select(faa, origin_lat = lat, origin_lon = lon)
+
+ap_dest <- airports %>%
+  select(faa, dest_lat = lat, dest_lon = lon)
+
+flights_with_coords <- flights %>%
+  left_join(ap_origin, by = c("origin" = "faa")) %>%
+  left_join(ap_dest,  by = c("dest"   = "faa"))
+
+flights_with_coords
+```
+
+### 19.3.4.7 Exercises
+```{r}
+#Compute the average delay by destination, then join on the airports data frame so you can show the spatial distribution of delays. Here’s an easy way to draw a map of the United States:
+
+airports |>
+  semi_join(flights, join_by(faa == dest)) |>
+  ggplot(aes(x = lon, y = lat)) +
+    borders("state") +
+    geom_point() +
+    coord_quickmap()
+
+#You might want to use the size or color of the points to display the average delay for each airport.
+
+delays_by_dest <- flights %>%
+  group_by(dest) %>%
+  summarise(
+    mean_arr_delay = mean(arr_delay, na.rm = TRUE),
+    n = n(),
+    .groups = "drop"
+  ) %>%
+  filter(!is.na(mean_arr_delay))
+
+# (optional) drop tiny-sample airports to reduce noise
+delays_by_dest <- filter(delays_by_dest, n >= 50)
+
+# 2) Join to airports for lon/lat
+ap_delays <- airports %>%
+  select(faa, name, lat, lon) %>%
+  inner_join(delays_by_dest, by = c("faa" = "dest"))
+
+# 3) Map it
+ggplot(ap_delays, aes(x = lon, y = lat)) +
+  borders("state") +
+  geom_point(aes(color = mean_arr_delay, size = n), alpha = 0.85) +
+  coord_quickmap() +
+  scale_size_continuous(name = "Flights (n)", range = c(1.5, 6)) +
+  scale_color_gradient2(
+    name = "Avg arrival delay (min)",
+    low = "steelblue", mid = "gray90", high = "firebrick",
+    midpoint = 0
+  ) +
+  labs(title = "Average Arrival Delay by Destination (NYC flights, 2013)",
+       subtitle = "Point size = # of flights; color = mean arrival delay (min)") +
+  theme_minimal(base_size = 12)
+```
+
+### 19.3.4.8 Exercises
+```{r}
+#What happened on June 13 2013? Draw a map of the delays, and then use Google to cross-reference with the weather.
+
+# (A) Filter to June 13, 2013 (local, NYC time in this dataset)
+fl_0613 <- flights %>%
+  filter(year == 2013, month == 6, day == 13)
+
+# (B) Compute mean arrival delay (mins) and traffic size by destination
+dest_delays_0613 <- fl_0613 %>%
+  group_by(dest) %>%
+  summarise(
+    mean_arr_delay = mean(arr_delay, na.rm = TRUE),
+    n = n(),
+    .groups = "drop"
+  ) %>%
+  filter(!is.na(mean_arr_delay))      # drop all-NA destinations
+
+# (C) Join to airports to get lon/lat for plotting
+ap_delays_0613 <- airports %>%
+  select(faa, name, lat, lon) %>%
+  inner_join(dest_delays_0613, by = c("faa" = "dest"))
+
+# (D) Draw the map (color = mean delay, size = # flights)
+ggplot(ap_delays_0613, aes(x = lon, y = lat)) +
+  borders("state") +
+  geom_point(aes(color = mean_arr_delay, size = n), alpha = 0.85) +
+  coord_quickmap() +
+  scale_size_continuous(name = "Flights (n)", range = c(1.5, 6)) +
+  scale_color_gradient2(
+    name = "Avg arrival delay (min)",
+    low = "steelblue", mid = "grey90", high = "firebrick",
+    midpoint = 0
+  ) +
+  labs(
+    title = "Average Arrival Delay by Destination — June 13, 2013 (NYC departures)",
+    subtitle = "Point size = flights; color = mean arrival delay (min)"
+  ) +
+  theme_minimal(base_size = 12)
+
+```
+
+# 19.4 How do joins work?
+```{r}
+x <- tribble(
+  ~key, ~val_x,
+     1, "x1",
+     2, "x2",
+     3, "x3"
+)
+y <- tribble(
+  ~key, ~val_y,
+     1, "y1",
+     2, "y2",
+     4, "y3"
+)
+x
+y
+```
+
+```{r}
+df1 <- tibble(key = c(1, 2, 2), val_x = c("x1", "x2", "x3"))
+df2 <- tibble(key = c(1, 2, 2), val_y = c("y1", "y2", "y3"))
+
+df1 |> 
+  inner_join(df2, join_by(key))
+```
+
+## 19.4.2 Filtering joins
+
+# 19.5 Non-equi joins
+```{r}
+x |> inner_join(y, join_by(key == key), keep = TRUE)
+```
+
+## 19.5.1 Cross joins
+```{r}
+df <- tibble(name = c("John", "Simon", "Tracy", "Max"))
+df |> cross_join(df)
+```
+
+## 19.5.2 Inequality joins
+```{r}
+df <- tibble(id = 1:4, name = c("John", "Simon", "Tracy", "Max"))
+
+df |> inner_join(df, join_by(id < id))
+```
+
+## 19.5.3 Rolling joins
+```{r}
+parties <- tibble(
+  q = 1:4,
+  party = ymd(c("2022-01-10", "2022-04-04", "2022-07-11", "2022-10-03"))
+)
+```
+
+```{r}
+set.seed(123)
+employees <- tibble(
+  name = sample(babynames::babynames$name, 100),
+  birthday = ymd("2022-01-01") + (sample(365, 100, replace = TRUE) - 1)
+)
+employees
+
+employees |> 
+  left_join(parties, join_by(closest(birthday >= party)))
+
+employees |> 
+  anti_join(parties, join_by(closest(birthday >= party)))
+```
+
+## 19.5.4 Overlap joins
+```{r}
+parties <- tibble(
+  q = 1:4,
+  party = ymd(c("2022-01-10", "2022-04-04", "2022-07-11", "2022-10-03")),
+  start = ymd(c("2022-01-01", "2022-04-04", "2022-07-11", "2022-10-03")),
+  end = ymd(c("2022-04-03", "2022-07-11", "2022-10-02", "2022-12-31"))
+)
+parties
+
+parties |> 
+  inner_join(parties, join_by(overlaps(start, end, start, end), q < q)) |> 
+  select(start.x, end.x, start.y, end.y)
+
+parties <- tibble(
+  q = 1:4,
+  party = ymd(c("2022-01-10", "2022-04-04", "2022-07-11", "2022-10-03")),
+  start = ymd(c("2022-01-01", "2022-04-04", "2022-07-11", "2022-10-03")),
+  end = ymd(c("2022-04-03", "2022-07-10", "2022-10-02", "2022-12-31"))
+)
+
+employees |> 
+  inner_join(parties, join_by(between(birthday, start, end)), unmatched = "error")
+```
+
+## 19.5.5 Exercises
+### 19.5.5.1 Exercises
+```{r}
+#Can you explain what’s happening with the keys in this equi join? Why are they different? 
+x |> full_join(y, join_by(key == key)) 
+x |> full_join(y, join_by(key == key), keep = TRUE)
+
+cat("Without keep=TRUE, you get one key column (from x), already coalesced.
+
+With keep=TRUE, you also get the original join keys from both tables, which may differ in type/format, revealing why they look different even though they matched. This is great for debugging joins and type issues (e.g., leading zeros).
+
+")
+```
+
+### 19.5.5.2 Exercises
+```{r}
+#When finding if any party period overlapped with another party period we used q < q in the join_by()? Why? What happens if you remove this inequality?
+cat("join_by(q < q) is a tie-breaker in a self non-equi join: it compares the right endpoint q of the left row to the q of the right row (i.e., x$q < y$q) to impose an ordering and keep only one orientation of each overlapping pair. Overlap conditions like start_x <= end_y & end_x >= start_y are symmetric, so without that extra inequality you get both (A,B) and (B,A) for every overlapping pair (and often self-matches if keys allow), doubling your counts and cluttering the result. The strict < removes duplicates (keeps the “upper triangle” only) and prevents self-matches; if you drop it, you’ll need a later distinct()/filter to de-duplicate.")
+```
+
+# 19.6 Summary

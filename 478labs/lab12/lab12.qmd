@@ -1,0 +1,202 @@
+---
+title: "Lab 12 - Accessing NEON Metadata for Metagenomics"
+author: "Daniel Hu"
+format:
+  html:
+    toc: true
+    toc_float: true
+    embed-resources: true
+execute: 
+  warning: false
+  message: false
+---
+
+# Why Store Multiple Data Frames in a Single Object in R?
+## 1. Better Organization and Readability
+## 2. Simplifies Iterative Operations
+## 3. Dynamic Handling of Data
+## 4. Facilitates Automation and Reproducibility
+## 5. Supports Complex Workflows
+## 6. Reduces Risk of Errors
+
+# RDS Files
+## Saving R Objects as RDS Files
+```{r}
+#To save an R object as an RDS file, you can use the saveRDS() function. Here’s how it works:
+#saveRDS(object, file = "filename.rds")
+
+saveRDS(mtcars, "mtcars.rds")
+```
+
+## Reading RDS Files
+```{r}
+#object <- readRDS(file = "filename.rds")
+
+my_data <- readRDS("mtcars.rds")
+```
+
+![Comparison with Other Formats](formatcomparison.png)
+# Accessing NEON data
+## Load Libararies
+```{r}
+library(neonUtilities)
+library(tidyverse)
+library(lubridate)
+library(DT)
+library(viridis)
+```
+
+## Download the NEON soil chemistry data
+```{r}
+soilChem <- loadByProduct(
+  dpID='DP1.10086.001',
+  startdate = "2023-01",
+  enddate = "2023-12",
+  check.size = FALSE,
+  package='expanded')
+```
+
+```{r}
+soilChem$sls_metagenomicsPooling[5,'genomicsSampleID']
+
+soilChem$sls_metagenomicsPooling[5,'collectDate']
+
+soilChem$sls_metagenomicsPooling$genomicsPooledIDList[5]
+
+# View(soilChem$sls_soilChemistry # No soil chemistry data for HARV
+soilChem$sls_soilMoisture |> 
+  filter(sampleID == "HARV_013-O-39-20230704") |> 
+  select(sampleID, soilMoisture)
+```
+
+```{r}
+# split up the pooled list into new columns
+genomicSamples <- soilChem$sls_metagenomicsPooling |>
+  tidyr::separate(genomicsPooledIDList, into=c("first","second","third"),sep="\\|",fill="right") |>
+  dplyr::select(genomicsSampleID,first,second,third)
+
+head(genomicSamples)
+```
+
+```{r}
+genSampleExample <- genomicSamples |> 
+  tidyr::pivot_longer(cols=c("first","second","third"),values_to = "sampleID") |>
+  dplyr::select(sampleID,genomicsSampleID) |>
+  drop_na()
+```
+
+```{R}
+chemEx <- soilChem$sls_soilMoisture |>
+  dplyr::select(sampleID,soilMoisture)
+
+## now combine the tables 
+combinedTab <- left_join(genSampleExample,chemEx, by = "sampleID") |> drop_na()
+
+## Show the data table
+head(combinedTab)
+```
+
+# Merging metadata around composite samples
+```{r}
+genome_groups_mean <- combinedTab %>%
+  group_by(genomicsSampleID) %>%
+  summarize_at(c("soilMoisture"), mean)
+
+head(genome_groups_mean)
+```
+
+# Additional examples for accessing data
+## Merging pH measurement
+```{r}
+soilpH_Example <- soilChem$sls_soilpH %>%
+  dplyr::filter(sampleID %in% combinedTab$sampleID) %>%
+  dplyr::select(sampleID,soilInWaterpH,soilInCaClpH)
+
+# now join with the existing table
+combinedTab_pH <- left_join(combinedTab,soilpH_Example, by = "sampleID")
+
+# and the final
+head(combinedTab_pH)
+```
+
+```{r}
+# Remember to install the respirometry package
+library(respirometry)
+
+genome_groups_pH <- combinedTab_pH %>%
+  group_by(genomicsSampleID) %>%
+  summarize_at(c("soilInWaterpH","soilInCaClpH"), mean_pH) 
+
+head(genome_groups_pH)
+```
+
+```{r}
+genome_groups_all_mean <- combinedTab_pH %>%
+  group_by(genomicsSampleID) %>%
+  {left_join(
+    summarize_at(.,vars("soilMoisture"), mean),
+    summarize_at(.,vars("soilInWaterpH","soilInCaClpH"), mean_pH)
+  )}
+
+head(genome_groups_all_mean)
+```
+ 
+#Exercises
+## Exercise 1
+```{r}
+# The dataframe sls_soilCoreCollection contains alot of useful information for analyzing the NEON MAGs. Create a new dataframe coreCollectionSubset with just the following columns
+
+#sampleID
+#decimalLatitude
+#decimalLongitude
+#elevation
+#soilTemp
+
+coreCollectionSubset <- sls_soilCoreCollection |>
+  select(sampleID, decimalLatitude, decimalLongitude, elevation, soilTemp)
+```
+
+## Exerise 2 
+```{r}
+#Following the above examples with chemEx join genSampleExample and coreCollectionSubset.
+coreCombinedTab <- genSampleExample |>
+  left_join(chemEx, by = "sampleID") |>
+  left_join(coreCollectionSubset, by = "sampleID") |>
+  drop_na()
+```
+
+## Exercise 3
+```{r}
+#Get the mean for each mean for each metagenome genomicsSampleID for each column in your data frame from Ex. 2.
+```
+
+## Exercise 4
+```{r}
+#Join the data frame from Ex. 3 with the soil moisture and pH measurments in genome_groups_all_mean.
+```
+
+## Exercise 5
+```{r}
+#Using the genomicsSampleID column, make a new column with the siteID (e.g. HARV). There is a similar example in lab 6 where we parsed the NEON MAG data.
+```
+
+## Exercise 6
+```{r}
+#Make a box plot with the soilpH by siteID
+```
+
+## Exercise 7
+```{r}
+#Calculate the mean soilTemp and soilMoisture for each siteID. Make a graph of mean soilTemp vs soilMoisture
+```
+
+## Exercise 8
+```{r}
+#Join your data frame from Ex 4 with the NEON_MAGs_soil data frame from lab 6.
+```
+
+## Exercise 9
+```{r}
+#Make a table of the MAGs found in soils with a pH < 4.0.
+```
+

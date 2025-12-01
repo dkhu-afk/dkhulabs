@@ -1,0 +1,1043 @@
+---
+title: "Lab 10"
+author: "Daniel Hu"
+format:
+  html:
+    toc: true
+    toc_float: true
+    embed-resources: true
+execute: 
+  warning: false
+  message: false
+---
+
+```{r}
+library(tidyverse)
+library(stringr)
+library(babynames)
+library(ggplot2)
+```
+
+# Key Functions in R for Regex
+```{r}
+#grep() returns indices of matches.
+#grepl() returns a logical vector indicating matches.
+grepl("cat", c("cat", "dog", "catalog"))
+```
+
+```{r}
+#sub() replaces the first match.
+#gsub() replaces all matches.
+gsub("dog", "cat", "dog and dog")
+```
+
+```{r}
+#regexpr() / gregexpr()
+  #Return the position of the first/all matches and their lengths.
+```
+
+```{r}
+#regmatches()
+  #Extracts matched substrings based on regexpr() or gregexpr().
+```
+
+# Regex Syntax Basics
+![regex syntax basics](Regex_Syntax_Basics.png)
+
+# Example Use Case
+```{r}
+text <- c("apple", "banana", "cherry", "date")
+grep("a", text, value = TRUE)  # Matches strings containing 'a'
+```
+
+```{r}
+grep("^a", text, value = TRUE)  # Matches strings starting with 'a'
+```
+
+```{r}
+grep("a$", text, value = TRUE)  # Matches strings ending with 'a'
+```
+
+# Introduction to stringr
+```{r}
+#Why Use stringr rather than base R regex functions?
+#Cleaner syntax: Easier to read and write than base R regex functions.
+#Tidyverse-friendly: Works well with dplyr, purrr, and other packages.
+#Consistent behavior: Avoids quirks of base R functions like grep() and sub().
+```
+
+## Common stringr Functions for Regex
+```{r}
+#1 Checks if a pattern exists in a string.
+str_detect(c("apple", "banana", "cherry"), "^a")
+```
+
+```{r}
+#2 Replaces the first or all occurrences of a pattern.
+str_replace("cat and dog", "dog", "mouse")
+str_replace_all("cat and dog and dog", "dog", "mouse")
+```
+
+```{r}
+#3 Extracts the first or all matches of a pattern.
+str_extract("My email is test@example.com", "[a-z0-9._%+-]+@[a-z0-9.-]+\\.[a-z]{2,}")
+```
+
+```{r}
+#4 Extracts matched groups using parentheses.
+str_match("Name: John", "Name: (\\w+)")
+```
+
+```{r}
+#5 Splits strings based on a pattern.
+str_split("apple,banana,cherry", ",")
+```
+## Regex Integration
+```{r}
+#All stringr functions accept regular expressions by default. You can use:
+  #^, $, ., *, +, ?, [], (), | — standard regex symbols
+  #Escaped characters like \\d, \\s, \\w for digits, whitespace, and word characters
+```
+
+# 15.1
+# 15.1.1
+```{r}
+#loaded packages
+#fruit contains the names of 80 fruits.
+#words contains 980 common English words.
+#sentences contains 720 short sentences.
+```
+
+# 15.2 Pattern basics
+```{r}
+str_view(fruit, "berry")
+#>  [6] │ bil<berry>
+#>  [7] │ black<berry>
+#> [10] │ blue<berry>
+#> [11] │ boysen<berry>
+#> [19] │ cloud<berry>
+#> [21] │ cran<berry>
+#> ... and 8 more
+```
+
+```{r}
+str_view(c("a", "ab", "ae", "bd", "ea", "eab"), "a.")
+#> [2] │ <ab>
+#> [3] │ <ae>
+#> [6] │ e<ab>
+```
+
+```{r}
+str_view(fruit, "a...e")
+#>  [1] │ <apple>
+#>  [7] │ bl<ackbe>rry
+#> [48] │ mand<arine>
+#> [51] │ nect<arine>
+#> [62] │ pine<apple>
+#> [64] │ pomegr<anate>
+#> ... and 2 more
+```
+
+```{r}
+# ab? matches an "a", optionally followed by a "b".
+str_view(c("a", "ab", "abb"), "ab?")
+#> [1] │ <a>
+#> [2] │ <ab>
+#> [3] │ <ab>b
+
+# ab+ matches an "a", followed by at least one "b".
+str_view(c("a", "ab", "abb"), "ab+")
+#> [2] │ <ab>
+#> [3] │ <abb>
+
+# ab* matches an "a", followed by any number of "b"s.
+str_view(c("a", "ab", "abb"), "ab*")
+#> [1] │ <a>
+#> [2] │ <ab>
+#> [3] │ <abb>
+```
+
+```{r}
+str_view(words, "[aeiou]x[aeiou]")
+#> [284] │ <exa>ct
+#> [285] │ <exa>mple
+#> [288] │ <exe>rcise
+#> [289] │ <exi>st
+str_view(words, "[^aeiou]y[^aeiou]")
+#> [836] │ <sys>tem
+#> [901] │ <typ>e
+```
+
+```{r}
+str_view(fruit, "apple|melon|nut")
+#>  [1] │ <apple>
+#> [13] │ canary <melon>
+#> [20] │ coco<nut>
+#> [52] │ <nut>
+#> [62] │ pine<apple>
+#> [72] │ rock <melon>
+#> ... and 1 more
+str_view(fruit, "aa|ee|ii|oo|uu")
+#>  [9] │ bl<oo>d orange
+#> [33] │ g<oo>seberry
+#> [47] │ lych<ee>
+#> [66] │ purple mangost<ee>n
+```
+
+# 15.3 Key functions
+## 15.3.1 Detect matches
+```{r}
+str_detect(c("a", "b", "c"), "[aeiou]")
+#> [1]  TRUE FALSE FALSE
+```
+
+```{r}
+babynames |> 
+  filter(str_detect(name, "x")) |> 
+  count(name, wt = n, sort = TRUE)
+#> # A tibble: 974 × 2
+#>   name           n
+#>   <chr>      <int>
+#> 1 Alexander 665492
+#> 2 Alexis    399551
+#> 3 Alex      278705
+#> 4 Alexandra 232223
+#> 5 Max       148787
+#> 6 Alexa     123032
+#> # ℹ 968 more rows
+```
+
+```{r}
+babynames |> 
+  group_by(year) |> 
+  summarize(prop_x = mean(str_detect(name, "x"))) |> 
+  ggplot(aes(x = year, y = prop_x)) + 
+  geom_line()
+```
+
+## 15.3.2 Count matches
+```{r}
+x <- c("apple", "banana", "pear")
+str_count(x, "p")
+#> [1] 2 0 1
+```
+
+```{r}
+str_count("abababa", "aba")
+#> [1] 2
+str_view("abababa", "aba")
+#> [1] │ <aba>b<aba>
+```
+
+```{r}
+babynames |> 
+  count(name) |> 
+  mutate(
+    vowels = str_count(name, "[aeiou]"),
+    consonants = str_count(name, "[^aeiou]")
+  )
+#> # A tibble: 97,310 × 4
+#>   name          n vowels consonants
+#>   <chr>     <int>  <int>      <int>
+#> 1 Aaban        10      2          3
+#> 2 Aabha         5      2          3
+#> 3 Aabid         2      2          3
+#> 4 Aabir         1      2          3
+#> 5 Aabriella     5      4          5
+#> 6 Aada          1      2          2
+#> # ℹ 97,304 more rows
+```
+
+```{r}
+babynames |> 
+  count(name) |> 
+  mutate(
+    name = str_to_lower(name),
+    vowels = str_count(name, "[aeiou]"),
+    consonants = str_count(name, "[^aeiou]")
+  )
+#> # A tibble: 97,310 × 4
+#>   name          n vowels consonants
+#>   <chr>     <int>  <int>      <int>
+#> 1 aaban        10      3          2
+#> 2 aabha         5      3          2
+#> 3 aabid         2      3          2
+#> 4 aabir         1      3          2
+#> 5 aabriella     5      5          4
+#> 6 aada          1      3          1
+#> # ℹ 97,304 more rows
+```
+
+## 15.3.3 Replace values
+```{r}
+x <- c("apple", "pear", "banana")
+str_replace_all(x, "[aeiou]", "-")
+#> [1] "-ppl-"  "p--r"   "b-n-n-"
+```
+
+```{r}
+x <- c("apple", "pear", "banana")
+str_remove_all(x, "[aeiou]")
+#> [1] "ppl" "pr"  "bnn"
+```
+
+## 15.3.4 Extract variables
+```{r}
+df <- tribble(
+  ~str,
+  "<Sheryl>-F_34",
+  "<Kisha>-F_45", 
+  "<Brandon>-N_33",
+  "<Sharon>-F_38", 
+  "<Penny>-F_58",
+  "<Justin>-M_41", 
+  "<Patricia>-F_84", 
+)
+
+df |> 
+  separate_wider_regex(
+    str,
+    patterns = c(
+      "<", 
+      name = "[A-Za-z]+", 
+      ">-", 
+      gender = ".",
+      "_",
+      age = "[0-9]+"
+    )
+  )
+#> # A tibble: 7 × 3
+#>   name    gender age  
+#>   <chr>   <chr>  <chr>
+#> 1 Sheryl  F      34   
+#> 2 Kisha   F      45   
+#> 3 Brandon N      33   
+#> 4 Sharon  F      38   
+#> 5 Penny   F      58   
+#> 6 Justin  M      41   
+#> # ℹ 1 more row
+```
+
+# 15.3.5 Exercises
+## 15.3.5.1 Exercise
+```{r}
+#What baby name has the most vowels? What name has the highest proportion of vowels? (Hint: what is the denominator?)
+babynames |>
+  distinct(name) |>
+  mutate(
+    vowel_count = str_count(name, regex("[aeiou]", ignore_case = TRUE))) |>
+  arrange(desc(vowel_count)
+          )
+
+babynames |>
+  distinct(name) |>
+  mutate(
+    vowel_count = str_count(name, regex("[aeiou]", ignore_case = TRUE)),
+    total_count = str_count(name, regex("[a-z]", ignore_case = TRUE)),
+    highest_proportion_vowels = total_count / vowel_count
+  ) %>% 
+    arrange((highest_proportion_vowels), desc(vowel_count), name)
+```
+
+## 15.3.5.2 Exercise
+```{r}
+#Replace all forward slashes in "a/b/c/d/e" with backslashes. What happens if you attempt to undo the transformation by replacing all backslashes with forward slashes? (We’ll discuss the problem very soon.)
+x <- "a/b/c/d/e"
+x1 <- str_replace_all(x, "/", "\\\\")
+x1
+str_replace_all(x1, "\\\\", "/")
+cat("'\\\\' is an escape sequence for a single backslash")
+cat("if you try to replace it, it goes back to normal")
+```
+
+## 15.3.5.3 Exercise
+```{r}
+#Implement a simple version of str_to_lower() using str_replace_all().
+
+simple_str_to_lower <- function(x) {
+  str_replace_all(
+    x,
+    c(
+      "A" = "a", "B" = "b", "C" = "c", "D" = "d", "E" = "e", "F" = "f",
+      "G" = "g", "H" = "h", "I" = "i", "J" = "j", "K" = "k", "L" = "l",
+      "M" = "m", "N" = "n", "O" = "o", "P" = "p", "Q" = "q", "R" = "r",
+      "S" = "s", "T" = "t", "U" = "u", "V" = "v", "W" = "w", "X" = "x",
+      "Y" = "y", "Z" = "z"
+    )
+  )
+}
+
+simple_str_to_lower("HeLLo WoRLd!")
+```
+
+## 15.3.5.3 Exercise
+```{r}
+#Create a regular expression that will match telephone numbers as commonly written in your country.
+
+pat <- regex("
+  ^                          # start of string
+  (?:\\+?1[\\s.-]?)?         # optional country code +1 or 1
+  (?:                        # area code
+    \\(([2-9]\\d{2})\\)      # (NPA)
+    |                        # or
+    ([2-9]\\d{2})            # NPA without parens
+  )
+  [\\s.-]?                   # optional separator
+  ([2-9]\\d{2})              # central office code (can't start 0/1)
+  [\\s.-]?                   # optional separator
+  (\\d{4})                   # line number
+  (?:\\s*(?:#|x|ext\\.?|extension)\\s*\\d{1,5})?  # optional extension
+  $                          # end of string
+", comments = TRUE)
+```
+
+# 15.4 Pattern details
+## 15.4.1 Escaping
+```{r}
+# To create the regular expression \., we need to use \\.
+dot <- "\\."
+
+# But the expression itself only contains one \
+str_view(dot)
+#> [1] │ \.
+
+# And this tells R to look for an explicit .
+str_view(c("abc", "a.c", "bef"), "a\\.c")
+#> [2] │ <a.c>
+```
+
+```{r}
+x <- "a\\b"
+str_view(x)
+#> [1] │ a\b
+str_view(x, "\\\\")
+#> [1] │ a<\>b
+```
+
+```{r}
+str_view(x, r"{\\}")
+#> [1] │ a<\>b
+```
+
+```{r}
+str_view(c("abc", "a.c", "a*c", "a c"), "a[.]c")
+#> [2] │ <a.c>
+str_view(c("abc", "a.c", "a*c", "a c"), ".[*]c")
+#> [3] │ <a*c>
+```
+
+## 15.4.2 Anchors
+```{r}
+#^ will lead to anchoring pre, and $ for post
+str_view(fruit, "^a")
+#> [1] │ <a>pple
+#> [2] │ <a>pricot
+#> [3] │ <a>vocado
+str_view(fruit, "a$")
+#>  [4] │ banan<a>
+#> [15] │ cherimoy<a>
+#> [30] │ feijo<a>
+#> [36] │ guav<a>
+#> [56] │ papay<a>
+#> [74] │ satsum<a>
+```
+
+```{r}
+str_view(fruit, "apple")
+#>  [1] │ <apple>
+#> [62] │ pine<apple>
+str_view(fruit, "^apple$")
+#> [1] │ <apple>
+```
+
+```{r}
+x <- c("summary(x)", "summarize(df)", "rowsum(x)", "sum(x)")
+str_view(x, "sum")
+#> [1] │ <sum>mary(x)
+#> [2] │ <sum>marize(df)
+#> [3] │ row<sum>(x)
+#> [4] │ <sum>(x)
+str_view(x, "\\bsum\\b")
+#> [4] │ <sum>(x)
+```
+
+```{r}
+str_view("abc", c("$", "^", "\\b"))
+#> [1] │ abc<>
+#> [2] │ <>abc
+#> [3] │ <>abc<>
+```
+
+```{r}
+str_replace_all("abc", c("$", "^", "\\b"), "--")
+#> [1] "abc--"   "--abc"   "--abc--"
+```
+
+```{r}
+x <- "abcd ABCD 12345 -!@#%."
+str_view(x, "[abc]+")
+#> [1] │ <abc>d ABCD 12345 -!@#%.
+str_view(x, "[a-z]+")
+#> [1] │ <abcd> ABCD 12345 -!@#%.
+str_view(x, "[^a-z0-9]+")
+#> [1] │ abcd< ABCD >12345< -!@#%.>
+
+# You need an escape to match characters that are otherwise
+# special inside of []
+str_view("a-b-c", "[a-c]")
+#> [1] │ <a>-<b>-<c>
+str_view("a-b-c", "[a\\-c]")
+#> [1] │ <a><->b<-><c>
+```
+
+```{r}
+#>\d matches any digit;
+#>\D matches anything that isn’t a digit.
+#\s matches any whitespace (e.g., space, tab, newline);
+#\S matches anything that isn’t whitespace.
+#\w matches any “word” character, i.e. letters and numbers;
+#\W matches any “non-word” character.
+
+x <- "abcd ABCD 12345 -!@#%."
+str_view(x, "\\d+")
+#> [1] │ abcd ABCD <12345> -!@#%.
+str_view(x, "\\D+")
+#> [1] │ <abcd ABCD >12345< -!@#%.>
+str_view(x, "\\s+")
+#> [1] │ abcd< >ABCD< >12345< >-!@#%.
+str_view(x, "\\S+")
+#> [1] │ <abcd> <ABCD> <12345> <-!@#%.>
+str_view(x, "\\w+")
+#> [1] │ <abcd> <ABCD> <12345> -!@#%.
+str_view(x, "\\W+")
+#> [1] │ abcd< >ABCD< >12345< -!@#%.>
+```
+
+## 15.4.4 Quantifiers
+```{r}
+#{n} matches exactly n times.
+#{n,} matches at least n times.
+#{n,m} matches between n and m times.
+```
+
+## 15.4.5 Operator precedence and parentheses
+```{r}
+#BEMDAS or PEMDAS
+```
+
+## 15.4.6 Grouping and capturing
+```{r}
+str_view(fruit, "(..)\\1")
+#>  [4] │ b<anan>a
+#> [20] │ <coco>nut
+#> [22] │ <cucu>mber
+#> [41] │ <juju>be
+#> [56] │ <papa>ya
+#> [73] │ s<alal> berry
+```
+
+```{r}
+str_view(words, "^(..).*\\1$")
+#> [152] │ <church>
+#> [217] │ <decide>
+#> [617] │ <photograph>
+#> [699] │ <require>
+#> [739] │ <sense>
+```
+
+```{r}
+sentences |> 
+  str_replace("(\\w+) (\\w+) (\\w+)", "\\1 \\3 \\2") |> 
+  str_view()
+#> [1] │ The canoe birch slid on the smooth planks.
+#> [2] │ Glue sheet the to the dark blue background.
+#> [3] │ It's to easy tell the depth of a well.
+#> [4] │ These a days chicken leg is a rare dish.
+#> [5] │ Rice often is served in round bowls.
+#> [6] │ The of juice lemons makes fine punch.
+#> ... and 714 more
+```
+
+```{r}
+sentences |> 
+  str_match("the (\\w+) (\\w+)") |> 
+  head()
+#>      [,1]                [,2]     [,3]    
+#> [1,] "the smooth planks" "smooth" "planks"
+#> [2,] "the sheet to"      "sheet"  "to"    
+#> [3,] "the depth of"      "depth"  "of"    
+#> [4,] NA                  NA       NA      
+#> [5,] NA                  NA       NA      
+#> [6,] NA                  NA       NA
+```
+
+```{r}
+sentences |> 
+  str_match("the (\\w+) (\\w+)") |> 
+  as_tibble(.name_repair = "minimal") |> 
+  set_names("match", "word1", "word2")
+#> # A tibble: 720 × 3
+#>   match             word1  word2 
+#>   <chr>             <chr>  <chr> 
+#> 1 the smooth planks smooth planks
+#> 2 the sheet to      sheet  to    
+#> 3 the depth of      depth  of    
+#> 4 <NA>              <NA>   <NA>  
+#> 5 <NA>              <NA>   <NA>  
+#> 6 <NA>              <NA>   <NA>  
+#> # ℹ 714 more rows
+```
+
+```{r}
+x <- c("a gray cat", "a grey dog")
+str_match(x, "gr(e|a)y")
+#>      [,1]   [,2]
+#> [1,] "gray" "a" 
+#> [2,] "grey" "e"
+str_match(x, "gr(?:e|a)y")
+#>      [,1]  
+#> [1,] "gray"
+#> [2,] "grey"
+```
+
+## 15.4.7 Exercises
+### 15.4.7.1 Exercise 
+```{r}
+#How would you match the literal string "'\? How about "$^$"?
+cat("I would use \\ before each symbol")
+```
+
+### 15.4.7.2 Exercise 
+```{r}
+#Explain why each of these patterns don’t match a \: "\", "\\", "\\\".
+cat("For the second, only two \\ works as one \ but since these are in quotes, it defines the literal quotation mark. The first doesn't define anything since one backslash produces an error. The third option literally defines a singular backslash and quotation mark.")
+```
+
+### 15.4.7.3 Exercises 
+```{r}
+#Given the corpus of common words in stringr::words, create regular expressions that find all words that:
+#>a. Start with “y”.
+str_subset(words, "^y")
+
+#>b. Don’t start with “y”.
+str_subset(words, "^[^y]")
+
+#>c. End with “x”.
+str_subset(words, "y$")
+
+#>d. Are exactly three letters long. (Don’t cheat by using str_length()!)
+str_subset(words, "^[a-z]{3}$")
+
+#>e. Have seven letters or more.
+str_subset(words, "^[a-z]{7,}$")
+
+#>f. Contain a vowel-consonant pair.
+str_subset(words, "[aeiou][^aeiou]")
+
+#>g. Contain at least two vowel-consonant pairs in a row.
+str_subset(words, "(?:[aeiou][^aeiou]){2}")
+
+#>h. Only consist of repeated vowel-consonant pairs.
+str_subset(words, "^(?:[aeiou][^aeiou])+$")
+```
+
+### 15.4.7.4 Exercises
+```{r}
+#Create 11 regular expressions that match the British or American spellings for each of the following words: airplane/aeroplane, aluminum/aluminium, analog/analogue, ass/arse, center/centre, defense/defence, donut/doughnut, gray/grey, modeling/modelling, skeptic/sceptic, summarize/summarise. Try and make the shortest possible regex!
+str_subset(words, "^(?:aero|air)plane$")
+str_subset(words, "^alumini?um$")
+str_subset(words, "^analog(?:ue)?$")
+str_subset(words, "^a(?:ss|rse)$")
+str_subset(words, "^cent(?:er|re)$")
+str_subset(words, "^defen[cs]e$")
+str_subset(words, "^do(?:ugh)?nut$")
+str_subset(words, "^gr[ae]y$")
+str_subset(words, "^modell?ing$")
+str_subset(words, "^s[ck]eptic$")
+str_subset(words, "^summari[sz]e$")
+```
+
+### 15.4.7.5 Exercises
+```{r}
+#Switch the first and last letters in words. Which of those strings are still words?
+w <- stringr::words
+swap_first_last <- function(x) str_replace(x, "^(.)(.*)(.)$", "\\3\\2\\1")
+swapped <- swap_first_last(w)
+
+results <- tibble(
+  original = w,
+  swapped  = swapped,
+  still_word = swapped %in% w
+)
+
+changed_and_valid <- results %>%
+  filter(still_word, original != swapped) %>%
+  arrange(original)
+
+unchanged_but_valid <- results %>%
+  filter(still_word, original == swapped) %>%
+  arrange(original)
+changed_and_valid
+unchanged_but_valid
+```
+
+### 15.4.7.6 Exercises
+```{r}
+#Describe in words what these regular expressions match: (read carefully to see if each entry is a regular expression or a string that defines a regular expression.)
+
+#^.*$
+cat("Entire string from start to end, consisting of zero or more characters (possibly empty). (. doesn’t match newlines unless configured.)")
+
+#"\\{.+\\}"
+cat("A literal {, then one or more of any character, then a literal }. Greedy: it will span from the first { to the last } on the line if both exist.")
+
+#\ d{4}-\d{2}-\d{2}
+cat("A date-like pattern: four digits, hyphen, two digits, hyphen, two digits (e.g., 2025-11-09). (\ d = digit.)")
+
+#"\\\\{4}"
+cat("Exactly four consecutive backslashes.")
+
+#\..\..\..
+cat("The sequence “dot + any char” repeated three times. In other words: .<any>.<any>.<any> (e.g., .a.b.c, .1.Z._). No anchors, so it can occur anywhere in the string.")
+
+#(.)\1\1
+cat("Three of the same character in a row, via backreferences (e.g., aaa, 111, %%%). Not anchored.")
+
+#"(..)\\1"
+cat("Two characters captured, immediately followed by the same two characters again (e.g., abab, zzzz, 1212). This finds a doubled bigram.")
+```
+
+# 15.5 Pattern control
+## 15.5.1 Regex flags
+```{r}
+bananas <- c("banana", "Banana", "BANANA")
+str_view(bananas, "banana")
+#> [1] │ <banana>
+str_view(bananas, regex("banana", ignore_case = TRUE))
+#> [1] │ <banana>
+#> [2] │ <Banana>
+#> [3] │ <BANANA>
+```
+
+```{r}
+x <- "Line 1\nLine 2\nLine 3"
+str_view(x, ".Line")
+#> ✖ Empty `string` provided.
+str_view(x, regex(".Line", dotall = TRUE))
+#> [1] │ Line 1<
+#>     │ Line> 2<
+#>     │ Line> 3
+```
+
+```{r}
+x <- "Line 1\nLine 2\nLine 3"
+str_view(x, "^Line")
+#> [1] │ <Line> 1
+#>     │ Line 2
+#>     │ Line 3
+str_view(x, regex("^Line", multiline = TRUE))
+#> [1] │ <Line> 1
+#>     │ <Line> 2
+#>     │ <Line> 3
+```
+
+```{r}
+phone <- regex(
+  r"(
+    \(?     # optional opening parens
+    (\d{3}) # area code
+    [)\-]?  # optional closing parens or dash
+    \ ?     # optional space
+    (\d{3}) # another three numbers
+    [\ -]?  # optional space or dash
+    (\d{4}) # four more numbers
+  )", 
+  comments = TRUE
+)
+
+str_extract(c("514-791-8141", "(123) 456 7890", "123456"), phone)
+#> [1] "514-791-8141"   "(123) 456 7890" NA
+```
+
+## 15.5.2 Fixed matches
+```{r}
+str_view(c("", "a", "."), fixed("."))
+#> [3] │ <.>
+```
+
+```{r}
+str_view("x X", "X")
+#> [1] │ x <X>
+str_view("x X", fixed("X", ignore_case = TRUE))
+#> [1] │ <x> <X>
+```
+
+```{r}
+str_view("i İ ı I", fixed("İ", ignore_case = TRUE))
+#> [1] │ i <İ> ı I
+str_view("i İ ı I", coll("İ", ignore_case = TRUE, locale = "tr"))
+#> [1] │ <i> <İ> ı I
+```
+
+# 15.6 Practice
+## 15.6.1 Check your work
+```{r}
+str_view(sentences, "^The")
+#>  [1] │ <The> birch canoe slid on the smooth planks.
+#>  [4] │ <The>se days a chicken leg is a rare dish.
+#>  [6] │ <The> juice of lemons makes fine punch.
+#>  [7] │ <The> box was thrown beside the parked truck.
+#>  [8] │ <The> hogs were fed chopped corn and garbage.
+#> [11] │ <The> boy was there when the sun rose.
+#> ... and 271 more
+```
+
+```{r}
+str_view(sentences, "^The\\b")
+#>  [1] │ <The> birch canoe slid on the smooth planks.
+#>  [6] │ <The> juice of lemons makes fine punch.
+#>  [7] │ <The> box was thrown beside the parked truck.
+#>  [8] │ <The> hogs were fed chopped corn and garbage.
+#> [11] │ <The> boy was there when the sun rose.
+#> [13] │ <The> source of the huge river is the clear spring.
+#> ... and 250 more
+```
+
+```{r}
+str_view(sentences, "^She|He|It|They\\b")
+#>  [3] │ <It>'s easy to tell the depth of a well.
+#> [15] │ <He>lp the woman get back to her feet.
+#> [27] │ <He>r purse was full of useless trash.
+#> [29] │ <It> snowed, rained, and hailed the same morning.
+#> [63] │ <He> ran half way to the hardware store.
+#> [90] │ <He> lay prone and hardly moved a limb.
+#> ... and 57 more
+```
+
+```{r}
+str_view(sentences, "^(She|He|It|They)\\b")
+#>   [3] │ <It>'s easy to tell the depth of a well.
+#>  [29] │ <It> snowed, rained, and hailed the same morning.
+#>  [63] │ <He> ran half way to the hardware store.
+#>  [90] │ <He> lay prone and hardly moved a limb.
+#> [116] │ <He> ordered peach pie with ice cream.
+#> [127] │ <It> caught its hind paw in a rusty trap.
+#> ... and 51 more
+```
+
+```{r}
+pos <- c("He is a boy", "She had a good time")
+neg <- c("Shells come from the sea", "Hadley said 'It's a great day'")
+
+pattern <- "^(She|He|It|They)\\b"
+str_detect(pos, pattern)
+#> [1] TRUE TRUE
+str_detect(neg, pattern)
+#> [1] FALSE FALSE
+```
+
+## 15.6.2 Boolean operations
+```{r}
+str_view(words, "^[^aeiou]+$")
+#> [123] │ <by>
+#> [249] │ <dry>
+#> [328] │ <fly>
+#> [538] │ <mrs>
+#> [895] │ <try>
+#> [952] │ <why>
+```
+
+```{r}
+str_view(words[!str_detect(words, "[aeiou]")])
+#> [1] │ by
+#> [2] │ dry
+#> [3] │ fly
+#> [4] │ mrs
+#> [5] │ try
+#> [6] │ why
+```
+
+```{r}
+str_view(words, "a.*b|b.*a")
+#>  [2] │ <ab>le
+#>  [3] │ <ab>out
+#>  [4] │ <ab>solute
+#> [62] │ <availab>le
+#> [66] │ <ba>by
+#> [67] │ <ba>ck
+#> ... and 24 more
+```
+
+```{r}
+words[str_detect(words, "a") & str_detect(words, "b")]
+#>  [1] "able"      "about"     "absolute"  "available" "baby"      "back"     
+#>  [7] "bad"       "bag"       "balance"   "ball"      "bank"      "bar"      
+#> [13] "base"      "basis"     "bear"      "beat"      "beauty"    "because"  
+#> [19] "black"     "board"     "boat"      "break"     "brilliant" "britain"  
+#> [25] "debate"    "husband"   "labour"    "maybe"     "probable"  "table"
+```
+
+```{r}
+words[str_detect(words, "a.*e.*i.*o.*u")]
+# ...
+words[str_detect(words, "u.*o.*i.*e.*a")]
+```
+
+```{r}
+words[
+  str_detect(words, "a") &
+  str_detect(words, "e") &
+  str_detect(words, "i") &
+  str_detect(words, "o") &
+  str_detect(words, "u")
+]
+#> character(0)
+```
+
+## 15.6.3 Creating a pattern with code
+```{r}
+str_view(sentences, "\\b(red|green|blue)\\b")
+#>   [2] │ Glue the sheet to the dark <blue> background.
+#>  [26] │ Two <blue> fish swam in the tank.
+#>  [92] │ A wisp of cloud hung in the <blue> air.
+#> [148] │ The spot on the blotter was made by <green> ink.
+#> [160] │ The sofa cushion is <red> and of light weight.
+#> [174] │ The sky that morning was clear and bright <blue>.
+#> ... and 20 more
+
+rgb <- c("red", "green", "blue")
+str_c("\\b(", str_flatten(rgb, "|"), ")\\b")
+#> [1] "\\b(red|green|blue)\\b"
+```
+
+```{r}
+str_view(colors())
+#> [1] │ white
+#> [2] │ aliceblue
+#> [3] │ antiquewhite
+#> [4] │ antiquewhite1
+#> [5] │ antiquewhite2
+#> [6] │ antiquewhite3
+#> ... and 651 more
+```
+
+```{r}
+cols <- colors()
+cols <- cols[!str_detect(cols, "\\d")]
+str_view(cols)
+#> [1] │ white
+#> [2] │ aliceblue
+#> [3] │ antiquewhite
+#> [4] │ aquamarine
+#> [5] │ azure
+#> [6] │ beige
+#> ... and 137 more
+```
+
+```{r}
+pattern <- str_c("\\b(", str_flatten(cols, "|"), ")\\b")
+str_view(sentences, pattern)
+#>   [2] │ Glue the sheet to the dark <blue> background.
+#>  [12] │ A rod is used to catch <pink> <salmon>.
+#>  [26] │ Two <blue> fish swam in the tank.
+#>  [66] │ Cars and busses stalled in <snow> drifts.
+#>  [92] │ A wisp of cloud hung in the <blue> air.
+#> [112] │ Leaves turn <brown> and <yellow> in the fall.
+#> ... and 57 more
+```
+
+## 15.6.4 Exercises
+### 15.6.4.1 Exercises
+```{r}
+#a
+start_or_end_x <- str_subset(w, "^(x|.*x$)")
+start_or_end_x <- str_subset(w, "^x|x$")
+
+#b
+vowel_start_consonant_end <- str_subset(w, "^[aeiou].*[^aeiou]$")
+
+#c
+all_vowels <- str_subset(w, "(?=.*a)(?=.*e)(?=.*i)(?=.*o)(?=.*u)")
+```
+
+### 15.6.4.2 Exercises
+```{r}
+#Construct patterns to find evidence for and against the rule “i before e except after c”?
+w <- stringr::words
+supports_ie_not_after_c <- str_subset(w, "(?<!c)ie")
+supports_cei <- str_subset(w, "cei")
+against_cie <- str_subset(w, "cie")
+against_ei_not_after_c <- str_subset(w, "(?<!c)ei")
+```
+
+### 15.6.4.3 Exercises
+```{r}
+mods <- c("light", "dark", "medium", "deep", "pale")
+mod_pat <- regex(paste0("^(", str_c(mods, collapse="|"), ")"), ignore_case = TRUE)
+
+# Colors that *are modified*
+modified <- str_subset(colors(), mod_pat)
+
+# Their base color names (minus modifier and trailing digits like 1–4)
+base_of_modified <- modified |>
+  str_to_lower() |>
+  str_remove(mod_pat) |>
+  str_remove("\\d+$")
+
+unique_modifiers <- str_match(modified, mod_pat)[,2] |> tolower() |> unique()
+
+# Unmodified colors (everything else)
+unmodified <- setdiff(colors(), modified)
+
+list(
+  modifiers_detected = unique_modifiers,
+  example_modified   = head(modified, 12),
+  example_bases      = head(base_of_modified, 12),
+  n_modified         = length(modified),
+  n_unmodified       = length(unmodified)
+)
+```
+
+### 15.6.4.3 Exercises
+```{r}
+# 1. Get all "datasets" package dataset names
+items <- data(package = "datasets")$results[, "Item"]
+
+# 2. Strip off grouping data-frame names in parentheses, e.g. "BJsales.lead (BJsales)"
+items_clean <- items |>
+  str_replace("\\s*\\([^()]+\\)$", "") |>  # remove " (something)"
+  unique()
+
+# 3. Build one big regular expression: word boundary + alternation + word boundary
+base_dataset_regex <- str_c("\\b(", str_flatten(items_clean, "|"), ")\\b")
+
+base_dataset_regex
+
+str_view(c("Use iris for examples.", "I love airquality data."),
+         base_dataset_regex,
+         match = TRUE)
+```
+
+# 15.7 Regular expressions in other places
+```{r}
+#matches(pattern) will select all variables whose name matches the supplied pattern. It’s a “tidyselect” function that you can use anywhere in any tidyverse function that selects variables (e.g., select(), rename_with() and across()).
+
+#pivot_longer()'s names_pattern argument takes a vector of regular expressions, just like separate_wider_regex(). It’s useful when extracting data out of variable names with a complex structure
+
+#The delim argument in separate_longer_delim() and separate_wider_delim() usually matches a fixed string, but you can use regex() to make it match a pattern. This is useful, for example, if you want to match a comma that is optionally followed by a space, i.e. regex(", ?").
+```
+
+## 15.7.2 Base R
+```{r}
+apropos("replace")
+#> [1] "%+replace%"       "replace"          "replace_na"      
+#> [4] "replace_theme"    "setReplaceMethod" "str_replace"     
+#> [7] "str_replace_all"  "str_replace_na"   "theme_replace"
+```
+
+```{r}
+head(list.files(pattern = "\\.Rmd$"))
+#> character(0)
+```
+
+# 15.8 Summary

@@ -1,0 +1,25 @@
+---
+title: "Lab 10"
+author: "Daniel Hu"
+format:
+  html:
+    toc: true
+    toc_float: true
+    embed-resources: true
+execute: 
+  warning: false
+  message: false
+---
+
+```{r}
+library(tidyverse)
+library(stringr)
+library(babynames)
+library(ggplot2)
+library(dplyr)
+```
+
+```{r}
+module --version
+```
+

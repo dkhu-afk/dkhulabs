@@ -1,0 +1,18 @@
+  170  module available
+  171  ule --version
+  172  module --version
+  173  module load  r/4.4.0  
+  174  R
+  175  nano addition.R
+  176  Rscript addition.R
+  177  module list
+  178  module unload r/4.4.0 
+  179  module purge
+  180  module spider r
+  181  module help r/4.4.0
+  182  nano additions_sbatch.sh
+  183  chmod +x 
+  184  chmod +x additions_sbatch.sh
+  185  sbatch additions_sbatch.sh
+  186  squeue -u $USER
+  187  history

@@ -1,0 +1,37 @@
+---
+title: "Lab S6 - AI assisted analysis of the NEON MAG taxonomy, soil chemistry and location data - Part I"
+author: "Daniel Hu"
+format:
+  html:
+    toc: true
+    toc_float: true
+    embed-resources: true
+    code-fold: true
+    theme: solar
+editor: visual
+execute: 
+  warning: false
+  message: false
+---
+
+```{r}
+library(tidyverse)
+library(lubridate)
+library(DT)
+library(viridis)
+library(janitor)
+library(plotly)
+library(respirometry)
+```
+
+# Exercise 1 - Preparing your NEON_soilMAGs_soilChem file
+
+```{r}
+read.csv("NEON_soilMAGs_soilChem.csv")
+```
+
+# Exercise 2 - Upload this file to co-pilot (you may need to download to your computer first).
+
+```{r}
+
+```

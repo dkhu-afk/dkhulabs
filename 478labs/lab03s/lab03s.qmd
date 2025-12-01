@@ -1,0 +1,18 @@
+---
+title: "Lab 07"
+author: "Daniel Hu"
+format:
+  html:
+    toc: true
+    toc_float: true
+    embed-resources: true
+execute: 
+  warning: false
+  message: false
+---
+
+[Biology Department](https://www.umass.edu/biology)
+
+[Github](https://github.com/dkhu-afk/uhikhuhiuhiuhui.git)
+
+[Previous lab 07](Lab 07.html)
