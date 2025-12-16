@@ -1,0 +1,8 @@
+---
+title: "PathoGen2025 Labs"
+format: html
+---
+
+# My Labs
+
+- [Lab 13: SoilChem MAGs](lab13.html)
