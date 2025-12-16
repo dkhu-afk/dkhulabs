@@ -1,0 +1,266 @@
+---
+title: "Lab 13 - Creating a detailed report with explanations from the NEON MAG data Overview"
+author: "Daniel Hu"
+format:
+  html:
+    toc: true
+    toc_float: true
+    embed-resources: true
+execute: 
+  warning: false
+  message: false
+---
+
+```{r}
+library(tidyverse)
+library(janitor)
+library(DT)
+library(stringr)
+library(scales)
+library(vegan)
+library(geosphere)
+library(leaflet)
+library(igraph)
+library(ggraph)
+library(Hmisc)
+```
+
+```{r}
+df_raw <- read_csv("NEON_soilMAGs_soilChem.csv", show_col_types = FALSE) |>
+clean_names()
+
+glimpse(df_raw)
+```
+
+```{r}
+# =========================
+# Lab 13 (Community Composition & Diversity) — ONE BLOCK SCRIPT
+# Uses NEON_soilMAGs_soilChem.csv
+# =========================
+
+# ---- packages ----
+pkgs <- c("tidyverse","janitor","stringr","lubridate","vegan","scales")
+to_install <- pkgs[!pkgs %in% rownames(installed.packages())]
+if (length(to_install) > 0) install.packages(to_install, repos = "https://cloud.r-project.org")
+invisible(lapply(pkgs, library, character.only = TRUE))
+
+# ---- file locate + load (fixes 'file not found') ----
+possible_paths <- c(
+  "NEON_soilMAGs_soilChem.csv",
+  "./NEON_soilMAGs_soilChem.csv",
+  "../NEON_soilMAGs_soilChem.csv",
+  file.path(getwd(), "NEON_soilMAGs_soilChem.csv")
+) |> unique()
+
+csv_path <- possible_paths[file.exists(possible_paths)][1]
+if (is.na(csv_path)) stop(
+  "NEON_soilMAGs_soilChem.csv not found. Put it in your current working directory:\n",
+  getwd()
+)
+
+df_raw <- readr::read_csv(csv_path, show_col_types = FALSE) |>
+  janitor::clean_names()
+
+# ---- helpers ----
+`%||%` <- function(x, y) if (is.null(x) || length(x) == 0 || all(is.na(x))) y else x
+
+coalesce_existing <- function(data, cols) {
+  cols <- cols[cols %in% names(data)]
+  if (length(cols) == 0) return(rep(NA_character_, nrow(data)))
+  out <- as.character(data[[cols[1]]])
+  if (length(cols) > 1) {
+    for (nm in cols[-1]) out <- dplyr::coalesce(out, as.character(data[[nm]]))
+  }
+  out
+}
+
+first_existing <- function(data, cols) {
+  cols <- cols[cols %in% names(data)]
+  if (length(cols) == 0) return(NULL)
+  cols[1]
+}
+
+# ---- standardize IDs (fixes 'sampleid not found') ----
+id_candidates <- c(
+  "genomics_sample_id","genomes_sample_id","genomessampleid","genomes_sampleid","genomes_sample_id",
+  "sample_id","sampleid","sample_id_neon","dna_sample_id"
+)
+
+df <- df_raw |>
+  mutate(
+    genomes_sample_id = coalesce_existing(cur_data(), c("genomes_sample_id","genomessampleid","genomes_sampleid","genomes_sample_id","genomics_sample_id")),
+    sample_id = coalesce_existing(cur_data(), id_candidates)
+  ) |>
+  mutate(
+    genomes_sample_id = if_else(
+      is.na(genomes_sample_id) & !is.na(sample_id) & str_detect(sample_id, "^[A-Z]{4}_\\d+"),
+      sample_id,
+      genomes_sample_id
+    )
+  )
+
+# Parse genomes_sample_id if it looks like "SITE_subplot_layer_YYYYMMDD" (common in this course)
+# This is robust: if format differs, it just yields NA columns
+df <- df |>
+  mutate(
+    site_id = str_extract(genomes_sample_id %||% "", "^[A-Za-z]{4}") |> na_if(""),
+    subplot = str_extract(genomes_sample_id %||% "", "(?<=_)\\d+(?=_)") |> na_if(""),
+    soil_layer = str_extract(genomes_sample_id %||% "", "(?<=_)[:alpha:](?=_)") |> na_if(""),
+    collection_date = str_extract(genomes_sample_id %||% "", "\\d{8}$") |>
+      na_if("") |>
+      suppressWarnings(ymd())
+  )
+
+# ---- pick taxonomy columns robustly ----
+phy_col   <- first_existing(df, c("phylum","tax_phylum","phylum_name"))
+class_col <- first_existing(df, c("class","tax_class","class_name"))
+genus_col <- first_existing(df, c("genus","tax_genus","genus_name"))
+if (is.null(phy_col) && is.null(class_col) && is.null(genus_col)) {
+  message("No obvious taxonomy columns named phylum/class/genus found. Printing names(df) to help you pick:")
+  print(names(df))
+}
+
+# ---- TAXONOMIC PROFILING (counts as proxy for abundance) ----
+tax_level <- if (!is.null(genus_col)) genus_col else if (!is.null(class_col)) class_col else phy_col
+if (is.null(tax_level)) stop("No taxonomy column found. Confirm your dataset has phylum/class/genus columns.")
+
+tax_df <- df |>
+  filter(!is.na(site_id)) |>
+  mutate(taxon = .data[[tax_level]] |> as.character() |> replace_na("Unassigned")) |>
+  count(site_id, taxon, name = "n_mags") |>
+  group_by(site_id) |>
+  mutate(prop = n_mags / sum(n_mags)) |>
+  ungroup()
+
+top_taxa <- tax_df |>
+  group_by(taxon) |>
+  summarise(total = sum(n_mags), .groups = "drop") |>
+  arrange(desc(total)) |>
+  slice_head(n = 15) |>
+  pull(taxon)
+
+tax_plot_df <- tax_df |>
+  mutate(taxon = if_else(taxon %in% top_taxa, taxon, "Other")) |>
+  group_by(site_id, taxon) |>
+  summarise(n_mags = sum(n_mags), prop = sum(prop), .groups = "drop")
+
+p_tax <- ggplot(tax_plot_df, aes(x = site_id, y = prop, fill = taxon)) +
+  geom_col() +
+  scale_y_continuous(labels = percent_format()) +
+  labs(
+    title = paste0("Taxonomic profiling by site (", tax_level, ")"),
+    x = "Site", y = "Proportion of MAGs (count proxy)", fill = "Taxon"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+print(p_tax)
+```
+```{r}
+# ---- BUILD COMMUNITY MATRIX (sites x taxa) ----
+comm_mat <- tax_df |>
+  select(site_id, taxon, n_mags) |>
+  pivot_wider(names_from = taxon, values_from = n_mags, values_fill = 0) |>
+  arrange(site_id)
+
+site_ids <- comm_mat$site_id
+comm <- comm_mat |>
+  select(-site_id) |>
+  as.data.frame()
+rownames(comm) <- site_ids
+
+# ---- ALPHA DIVERSITY (richness, Shannon, Simpson) ----
+alpha <- tibble(
+  site_id = rownames(comm),
+  richness = vegan::specnumber(comm),
+  shannon  = vegan::diversity(comm, index = "shannon"),
+  simpson  = vegan::diversity(comm, index = "simpson")
+)
+
+alpha_long <- alpha |>
+  pivot_longer(cols = c(richness, shannon, simpson), names_to = "metric", values_to = "value")
+
+p_alpha <- ggplot(alpha_long, aes(x = reorder(site_id, value), y = value)) +
+  geom_col() +
+  facet_wrap(~ metric, scales = "free_y") +
+  labs(title = "Alpha diversity by site (based on MAG count proxy)", x = "Site", y = "Value") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+print(p_alpha)
+```
+
+```{r}
+# ---- BETA DIVERSITY (Bray-Curtis) + NMDS ----
+bc <- vegan::vegdist(comm, method = "bray")
+
+set.seed(13)
+nmds <- vegan::metaMDS(comm, distance = "bray", k = 2, trymax = 100, autotransform = FALSE)
+```
+
+```{r}
+nmds_points <- as.data.frame(vegan::scores(nmds, display = "sites"))
+nmds_points$site_id <- rownames(nmds_points)
+
+p_nmds <- ggplot(nmds_points, aes(x = NMDS1, y = NMDS2, label = site_id)) +
+  geom_point(size = 3) +
+  geom_text(vjust = -0.8) +
+  labs(title = "NMDS ordination (Bray-Curtis) of sites", subtitle = paste("Stress =", round(nmds$stress, 3))) +
+  theme_minimal()
+print(p_nmds)
+```
+
+```{r}
+# ---- PCoA (classical multidimensional scaling) on Bray-Curtis ----
+pcoa <- cmdscale(bc, k = 2, eig = TRUE)
+pcoa_df <- as.data.frame(pcoa$points)
+colnames(pcoa_df) <- c("PCoA1","PCoA2")
+pcoa_df$site_id <- rownames(pcoa_df)
+
+var_expl <- pcoa$eig / sum(pcoa$eig[pcoa$eig > 0], na.rm = TRUE)
+p_pcoa <- ggplot(pcoa_df, aes(x = PCoA1, y = PCoA2, label = site_id)) +
+  geom_point(size = 3) +
+  geom_text(vjust = -0.8) +
+  labs(
+    title = "PCoA of sites (Bray-Curtis)",
+    x = paste0("PCoA1 (", percent(var_expl[1] %||% 0), ")"),
+    y = paste0("PCoA2 (", percent(var_expl[2] %||% 0), ")")
+  ) +
+  theme_minimal()
+print(p_pcoa)
+```
+
+```{r}
+# ---- OPTIONAL: merge soil chemistry per site (mean) for quick correlations ----
+# Identify numeric soil variables (excluding obvious non-soil columns)
+num_cols <- names(df)[map_lgl(df, is.numeric)]
+drop_num <- intersect(num_cols, c("latitude","longitude","decimal_latitude","decimal_longitude"))
+soil_num_cols <- setdiff(num_cols, drop_num)
+
+soil_site <- df |>
+  filter(!is.na(site_id)) |>
+  group_by(site_id) |>
+  summarise(across(all_of(soil_num_cols), ~mean(.x, na.rm = TRUE)), .groups = "drop")
+
+alpha_soil <- alpha |>
+  left_join(soil_site, by = "site_id")
+
+# Example: Shannon vs a likely soil variable if present
+candidate_env <- intersect(names(alpha_soil), c("ph","soil_ph","soil_moisture","moisture","soil_temp","temperature","elevation"))
+if (length(candidate_env) > 0) {
+  env <- candidate_env[1]
+  p_env <- ggplot(alpha_soil, aes(x = .data[[env]], y = shannon, label = site_id)) +
+    geom_point(size = 3) +
+    geom_text(vjust = -0.8) +
+    labs(title = paste("Shannon diversity vs", env), x = env, y = "Shannon") +
+    theme_minimal()
+  print(p_env)
+} else {
+  message("No obvious soil variables like pH/moisture/temp found for a quick alpha vs environment plot.")
+}
+```
+
+```{r}
+# ---- outputs ----
+print(alpha |> arrange(desc(shannon)))
+
+```
+
