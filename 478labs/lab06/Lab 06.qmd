@@ -1,0 +1,506 @@
+---
+title: "Lab 06"
+author: "Daniel Hu"
+format:
+  html:
+    toc: true
+    toc_float: true
+    embed-resources: true
+execute: 
+  warning: false
+  message: false
+---
+
+```{r}
+library(tidyverse)
+library(tidyr)
+library(dplyr)
+library(janitor)
+library(plotly)
+library(DT)
+library(lubridate)
+library(stringr)
+library(scales)
+```
+
+```{r}
+  ggplot(data = iris, aes(x = Sepal.Length, y = Sepal.Width)) +
+    geom_point(aes(color=Species, shape=Species)) +
+    labs(title = "Iris Sepal Length vs Wide", x = "Sepal Length", y = "Sepal Width", color = "Plant Species", shape = "Plant Species") 
+```
+
+# Graph Labels
+```{r}
+# 'theme_classic' is a different theme than not specifying 
+  ggplot(data = iris, aes(x = Sepal.Length, y = Sepal.Width)) +
+    geom_point(aes(color=Species, shape=Species)) +
+    labs(title = "Iris Sepal Length vs Wide", x = "Sepal Length", y = "Sepal Width", color = "Plant Species", shape = "Plant Species") +
+  theme_classic()
+```
+
+# Colors
+```{r}
+  ggplot(data = iris, aes(x = Sepal.Length, y = Sepal.Width)) +
+    geom_point(color = "red", aes(shape = Species))+
+    labs(title = "Iris Sepal Length vs Wide", x = "Sepal Length", y = "Sepal Width") 
+```
+
+```{r}
+#manually specify which colors are used
+  ggplot(data = iris, aes(x = Sepal.Length, y = Sepal.Width)) +
+    geom_point(aes(color = Species, shape = Species)) +
+    scale_color_manual(values=c("blue", "purple", "red")) +
+    labs(title = "Iris Sepal Length vs Wide", x = "Sepal Length", y = "Sepal Width") 
+```
+
+```{r}
+#manually specify color theme used 
+  ggplot(data = iris, aes(x = Sepal.Length, y = Sepal.Width)) +
+    geom_point(aes(color = Species, shape = Species)) +
+    scale_color_brewer(palette="Dark2") +
+    labs(title = "Iris Sepal Length vs Wide", x = "Sepal Length", y = "Sepal Width") 
+```
+
+```{r}
+#Black outlines for filled in default color palette 
+library(viridisLite)
+  ggplot(data = iris, aes(x = Sepal.Length, y = Sepal.Width)) +
+    geom_point(aes(fill = Species), color = "black", pch=21) +
+    labs(title = "Iris Sepal Length vs Wide", x = "Sepal Length", y = "Sepal Width")
+```
+
+```{r}
+#colorblind friendly color palette
+library(viridisLite)
+  ggplot(data = iris, aes(x = Sepal.Length, y = Sepal.Width)) +
+    geom_point(aes(color = Species, shape = Species)) +
+    scale_colour_viridis_d() +
+    labs(title = "Iris Sepal Length vs Wide", x = "Sepal Length", y = "Sepal Width") 
+```
+
+```{r}
+#absolute path to images folder
+# > getwd() <- type in console
+# [1] "/home/dkhu_umass_edu"
+
+
+#relative path to images folder
+
+```
+
+# Graph size in Markdown
+```{r}
+# If {r, eval = FALSE} the code will not be run,   but will be shown. 
+# If {r, code = FALSE} the code will not be shown, but will be run and the output will be shown
+
+# '#| fig-height: 20' changes figure height in header
+# '#| fig-width: 8'   changes figure width in header
+```
+
+#Graphic output
+```{r}
+# Plot graph to a pdf outputfile
+pdf("/home/dkhu_umass_edu/images/iris_example_plot1.pdf", width=6, height=3)
+ggplot(data = iris, aes(x = Sepal.Length, y = Sepal.Width, color = Species)) + 
+  geom_point() +
+  labs(title = "Iris Sepal Length vs Wide", x = "Sepal Length", y = "Sepal Width") 
+dev.off()
+
+# Plot graph to a png outputfile
+ppi <- 300
+png("/home/dkhu_umass_edu/images/iris_example_plot2.png", width=6*ppi, height=4*ppi, res=ppi)
+ggplot(data = iris, aes(x = Sepal.Length, y = Sepal.Width, color = Species)) + 
+  geom_point()
+dev.off()
+```
+
+#Markdown loading images
+```{r}
+# This is the Markdown style for inserting images
+# Your image must be in your working directory
+# This command is put OUTSIDE the r code chunk
+```
+![Iris example plot](/home/dkhu_umass_edu/images/iris_example_plot2.png)
+
+#Interactive graphs
+```{r}
+# Version 1
+ggplotly(
+  ggplot(data = iris, aes(x = Sepal.Length, y = Sepal.Width, color = Species)) + 
+    geom_point()
+ )
+
+# Version 2
+p <- ggplot(data = iris, aes(x = Sepal.Length, y = Sepal.Width, color = Species)) + 
+  geom_point()
+ggplotly(p)
+```
+
+# Examples with the NEON data
+## This first block of code is for both the freshwater and soil MAGs
+```{r}
+# This is the location used for Github
+#NEON_MAGs_prelim <- read_tsv("../data/NEON_metadata/exported_img_bins_Gs0166454_NEON.tsv") |> 
+# This is the location used for the class data directory on Unity
+NEON_MAGs_prelim <- read_tsv("/work/pi_bio678_umass_edu/data_NEON/exported_img_bins_Gs0166454_NEON.tsv") |>
+  
+  clean_names() |> 
+  
+  # Add a new column community corresponding to different communities names in the genome_name
+  mutate(community = case_when(
+    str_detect(genome_name, "Freshwater sediment microbial communities") ~ "Freshwater sediment microbial communitie",
+    str_detect(genome_name, "Freshwater biofilm microbial communities") ~ "Freshwater biofilm microbial communities",
+    str_detect(genome_name, "Freshwater microbial communities") ~ "Freshwater microbial communities",
+    str_detect(genome_name, "Soil microbial communities") ~ "Soil microbial communities",
+    TRUE ~ NA_character_
+  )) |> 
+  
+  # Create a column type that is either Freshwater or Soil
+  mutate(type = case_when(
+    str_detect(genome_name, "Freshwater sediment microbial communities") ~ "Freshwater",
+    str_detect(genome_name, "Freshwater biofilm microbial communities") ~ "Freshwater",
+    str_detect(genome_name, "Freshwater microbial communities") ~ "Freshwater",
+    str_detect(genome_name, "Soil microbial communities") ~ "Soil",
+    TRUE ~ NA_character_
+  )) |> 
+  
+  # Get rid of the communities strings
+  mutate_at("genome_name", str_replace, "Freshwater sediment microbial communities from ", "") |> 
+  mutate_at("genome_name", str_replace, "Freshwater biofilm microbial communities from", "") |> 
+  mutate_at("genome_name", str_replace, "Freshwater microbial communities from ", "") |> 
+  mutate_at("genome_name", str_replace, "Soil microbial communities from ", "") |> 
+
+  # separate site from sample name 
+  separate(genome_name, c("site","sample_name"), " - ") |>   
+  
+  # Deal with these unknow fields in the sample name by creating a new column and removing them from the sample name
+  mutate(sample_unknown = case_when(
+    str_detect(sample_name, ".SS.") ~ "SS",
+    str_detect(sample_name, ".C0.") ~ "C0",
+    str_detect(sample_name, ".C1.") ~ "C1",
+    str_detect(sample_name, ".C2.") ~ "C2",
+    TRUE ~ NA_character_
+  )) |> 
+  
+  mutate_at("sample_name", str_replace, ".SS", "") |> 
+  mutate_at("sample_name", str_replace, ".C0", "") |> 
+  mutate_at("sample_name", str_replace, ".C1", "") |> 
+  mutate_at("sample_name", str_replace, ".C2", "") |> 
+  
+
+  # Get rid of the the common strings at the end of sample names
+  mutate_at("sample_name", str_replace, "-GEN-DNA1", "") |>  
+  mutate_at("sample_name", str_replace, "-COMP-DNA1", "") |>  
+  mutate_at("sample_name", str_replace, "-COMP-DNA2", "") |>  
+  mutate_at("sample_name", str_replace, ".DNA-DNA1", "") |>
+  mutate_at("sample_name", str_replace, "_v2", "") |>
+  mutate_at("sample_name", str_replace, " \\(version 2\\)", "") |>
+  mutate_at("sample_name", str_replace, " \\(version 3\\)", "") |>
+  
+# Separate out the taxonomy groups
+  separate(gtdb_taxonomy_lineage, c("domain", "phylum", "class", "order", "family", "genus"), "; ", remove = FALSE)
+```
+
+## This block is for separating out the freshwater sample names
+```{r}
+NEON_MAGs_freshwater <- NEON_MAGs_prelim |>
+  filter(type == "Freshwater") |>
+  # separate the Sample Name into Site ID and plot info
+  separate(sample_name, c("site_ID","date", "layer", "subplot"), "\\.", remove = FALSE) |>
+  mutate(quadrant = NA_character_)
+```
+
+## This block is for separating out the soil sample names
+```{r}
+NEON_MAGs_soil <- NEON_MAGs_prelim |>
+  filter(type == "Soil") |>
+  # separate the Sample Name into Site ID and plot info
+  separate(sample_name, c("site_ID","subplot.layer.date"), "_", remove = FALSE,) |> 
+  # some sample names have 3 fields while others have a fourth field for the quadrant. This code create a field for the quadrant when present and adds na for samples from combined cores.
+  extract(
+    subplot.layer.date,
+    into = c("subplot", "layer", "quadrant", "date"),
+    regex = "^([^-]+)-([^-]+)(?:-([^-]+))?-([^-]+)$",
+    remove = FALSE
+  ) |>
+  mutate(quadrant = na_if(quadrant, "")) |>
+  select(-subplot.layer.date)
+```
+
+## This combines the soil and freshwater data frames
+```{r}
+NEON_MAGs <-bind_rows(NEON_MAGs_freshwater, NEON_MAGs_soil) |>
+  # This changes the format of the data column
+  mutate(date = ymd(date))
+```
+
+## Finding rows with NA
+```{r}
+#filter(is.na(column_name))
+#mutate(column_name = replace_na(column_name, "novel"))
+```
+
+# NEON graphs
+## Bar plots
+```{r}
+NEON_MAGs |> 
+mutate(phylum = replace_na(phylum, "***NOVEL***")) |>
+ggplot(aes(x = phylum)) +
+  geom_bar() +
+  coord_flip()
+```
+
+```{r}
+#organized by count
+NEON_MAGs |> 
+ggplot(aes(x = fct_infreq(phylum))) +
+  geom_bar() +
+  coord_flip()
+```
+
+```{r}
+NEON_MAGs |> 
+  count(phylum) |> 
+ggplot(aes(x = phylum, y = n)) +
+  geom_col(stat = "identity") +
+  coord_flip()
+```
+
+```{r}
+NEON_MAGs |> 
+  count(phylum) |> 
+ggplot(aes(x = reorder(phylum, n), y = n)) +
+  geom_col(stat = "identity") +
+  coord_flip()
+```
+
+```{r}
+NEON_MAGs |> 
+ggplot(aes(x = fct_rev(fct_infreq(phylum)), fill = type)) +
+  geom_bar() +
+  coord_flip()
+```
+
+```{r}
+NEON_MAGs |> 
+ggplot(aes(x = fct_rev(fct_infreq(phylum)), fill = type)) +
+  geom_bar(position = "dodge") +
+  coord_flip()
+```
+
+```{r}
+NEON_MAGs |> 
+ggplot(aes(x = fct_rev(fct_infreq(phylum)), fill = type)) +
+  geom_bar(position = position_dodge2(width = 0.9, preserve = "single")) +
+  coord_flip()
+```
+
+```{r}
+NEON_MAGs |> 
+ggplot(aes(x = phylum, fill = type)) +
+  geom_bar(position = position_dodge2(width = 0.9, preserve = "single")) +
+  coord_flip() +
+  facet_wrap(vars(site_ID), scales = "free", ncol = 2)
+```
+
+# Histogram
+```{r}
+NEON_MAGs |> 
+ggplot(aes(x = total_number_of_bases)) +
+  geom_histogram(bins = 50) 
+```
+
+# Box Plot
+```{r}
+NEON_MAGs  |>    
+ggplot(aes(x = fct_infreq(phylum), y = total_number_of_bases)) +
+  geom_boxplot() +
+  theme(axis.text.x = element_text(angle=45, vjust=1, hjust=1))
+```
+## Showing each point in the above plot
+```{r}
+NEON_MAGs |>   
+ggplot(aes(x = fct_infreq(phylum), y = total_number_of_bases)) +
+  geom_point() +
+  coord_flip()
+```
+
+# Exercises
+```{r}
+NEON_MAGs |> 
+  filter(is.na(class) | is.na(order))
+```
+
+## Exercise 1
+```{r}
+# What are the overall class MAG counts?
+NEON_MAGs |>
+  mutate(class = replace_na(class, "Novel Class")) |>
+  ggplot(aes(x = fct_infreq(class), fill = class)) +
+  geom_bar() +
+  coord_flip() +
+  theme_minimal() +
+  guides(fill = "none") +
+  labs(title = "Overall MAG Counts by Class",
+       x = "Taxonomic Class",
+       y = "Number of MAGs")
+```
+
+## Exercise 2
+```{r}
+# What are the MAG counts for each subplot. Color by site ID.
+NEON_MAGs |>
+  ggplot(aes(x = subplot, fill = site_ID)) +
+  geom_bar() +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(title = "MAG Counts per Subplot",
+       x = "Subplot ID",
+       y = "Count",
+       fill = "Site ID")
+```
+
+## Exercise 3
+```{r}
+# How many novel bacteria were discovered (Show that number of NAs for each site)?
+NEON_MAGs |>
+  filter(is.na(class) | is.na(order) | is.na(family) | is.na(genus)) |>
+  ggplot(aes(x = site_ID, fill = site_ID)) +
+  geom_bar() +
+  theme_minimal() +
+  labs(title = "Novel Bacterial MAGs Discovered per Site",
+       x = "Site ID",
+       y = "Number of Novel MAGs")
+```
+
+## Exercise 4
+```{r}
+# How many novel bacterial MAGs are high quality vs medium quality?
+NEON_MAGs |>
+  filter(is.na(class) | is.na(order) | is.na(family) | is.na(genus)) |>
+  ggplot(aes(x = bin_quality, fill = bin_quality)) +
+  geom_bar() +
+  theme_minimal() +
+  labs(title = "Quality of Novel Bacterial MAGs",
+       x = "Bin Quality",
+       y = "Count",
+       fill = "Quality")
+```
+
+## Exercise 5
+```{r}
+# What phyla have novel bacterial genera?
+NEON_MAGs |>
+  filter(is.na(genus)) |>
+  ggplot(aes(x = fct_infreq(phylum), fill = phylum)) +
+  geom_bar() +
+  coord_flip() +
+  theme_minimal() +
+  guides(fill = "none") +
+  labs(title = "Phyla Containing Novel Bacterial Genera",
+       x = "Phylum",
+       y = "Count of Novel Genera")
+```
+
+## Exercise 6
+```{r}
+# Make a stacked bar plot of the total number of MAGs at each site using Phylum as the fill.
+NEON_MAGs |>
+  mutate(phylum = replace_na(phylum, "Novel Phylum")) |>
+  ggplot(aes(x = site_ID, fill = phylum)) +
+  geom_bar() +
+  theme_minimal() +
+  labs(title = "Total MAGs per Site by Phylum",
+       x = "Site ID",
+       y = "Total MAG Count",
+       fill = "Phylum")
+```
+
+## Exercise 7
+```{r}
+# Using facet_wrap make plots of the total number of MAGs at each site for each phylum (e.g. similar to the example above but using the site ID and separating each graph by phylum.)
+NEON_MAGs |>
+  ggplot(aes(x = site_ID, fill = site_ID)) +
+  geom_bar() +
+  facet_wrap(vars(phylum), scales = "free_y") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  guides(fill = "none") +
+  labs(title = "MAG Distribution Across Sites by Phylum",
+       x = "Site ID",
+       y = "Count")
+```
+
+## Exercise 8
+```{r}
+# What is the relationship between MAGs genome size and the number of genes? Color by Phylum.
+NEON_MAGs |>
+  ggplot(aes(x = total_number_of_bases, y = gene_count, color = phylum)) +
+  geom_point(alpha = 0.5) +
+  theme_minimal() +
+  labs(title = "Relationship Between Genome Size and Gene Count",
+       x = "Total Number of Bases",
+       y = "Number of Genes",
+       color = "Phylum")
+```
+
+## Exercise 9
+```{r}
+# What is the relationship between scaffold count and MAG completeness?
+NEON_MAGs |>
+  ggplot(aes(x = scaffold_count, y = bin_completeness, color = bin_quality)) +
+  geom_point(alpha = 0.5) +
+  geom_smooth(method = "lm", color = "black") +
+  theme_minimal() +
+  labs(title = "Scaffold Count vs. MAG Completeness",
+       x = "Scaffold Count",
+       y = "Completeness (%)",
+       color = "Quality")
+```
+
+## Exercise 10
+```{r}
+# Separate out bin_id (e.g 3300078752_s0) into 2 columns metagenome_id and bin_num.
+NEON_MAGs_separated <- NEON_MAGs |>
+  separate(bin_id, into = c("metagenome_id", "bin_num"), sep = "_")
+
+# Display the first few rows to verify
+head(NEON_MAGs_separated %>% select(metagenome_id, bin_num))
+```
+
+## Exercise 11
+```{r}
+# The site column has strings like
+
+#Rio Cupeyes NEON Field Site, San Germán, Puerto Rico
+#Sycamore Creek NEON Field Site, Rio Verde, Arizona, USA
+#San Joaquin Experimental Range NEON Field site, Yosemite Lakes, California, USA
+#San Joaquin Experimental Range NEON Field Site, California, USA
+#Oak Ridge NEON Field Station, Tennessee, USA
+#Separate out this string into 4 columns site name (e.g. Rio Cupeyes), ’NEON field site(e.g. NEON Field Site/Station),region(e.g. Yosemite Lakes) andstate`.
+
+NEON_MAGs_sites <- NEON_MAGs |>
+  separate(site, 
+           into = c("site_name", "neon_facility", "region", "state"), 
+           sep = ", ", 
+           fill = "right") |>
+  mutate(state = coalesce(state, region)) # Handles strings with fewer commas
+
+# Display result
+head(NEON_MAGs_sites %>% select(site_name, region, state))
+```
+
+## Exercise 12
+```{r}
+# Make a graph showing the number of MAGs in each state.
+NEON_MAGs_sites |>
+  filter(!is.na(state)) |>
+  ggplot(aes(x = fct_infreq(state), fill = state)) +
+  geom_bar() +
+  theme_minimal() +
+  labs(title = "Number of MAGs Recovered per State",
+       x = "State",
+       y = "Count of MAGs") +
+  guides(fill = "none")
+```
+

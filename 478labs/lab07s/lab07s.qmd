@@ -1,0 +1,79 @@
+---
+title: "Lab S7 - AI assisted analysis of the NEON MAG taxonomy, soil chemistry and location data - Part II"
+author: "Daniel Hu"
+format:
+  html:
+    toc: true
+    toc_float: true
+    embed-resources: true
+execute: 
+  warning: false
+  message: false
+---
+
+```{r}
+library(tidyverse)
+library(lubridate)
+library(DT)
+library(viridis)
+library(janitor)
+library(plotly)
+library(respirometry)
+```
+
+# 2. Load the dataset
+```{r}
+# Ensure NEON_soilMAGs_soilChem.csv is in your working directory
+data <- read_csv("NEON_soilMAGs_soilChem.csv") %>% clean_names()
+```
+
+# 4. Visualization: Phylum Relative Abundance vs. Soil pH
+```{r}
+# 1. Update the env_analysis to use the correct pH column name
+env_analysis <- data %>%
+  filter(!is.na(soil_in_waterp_h), !is.na(soil_moisture)) %>%
+  group_by(site_id, soil_in_waterp_h, soil_moisture, phylum) %>%
+  summarise(count = n(), .groups = 'drop') %>%
+  group_by(site_id) %>%
+  mutate(relative_abundance = count / sum(count))
+
+# 2. Re-create the plot using the correct x-axis variable
+plot_ph <- ggplot(env_analysis, aes(x = soil_in_waterp_h, y = relative_abundance, color = phylum)) +
+  geom_point(alpha = 0.6) +
+  geom_smooth(method = "lm", se = FALSE) +
+  scale_color_viridis_d() +
+  theme_minimal() +
+  labs(title = "Microbial Phylum Abundance vs. Soil pH",
+       x = "Soil pH (Water)",
+       y = "Relative Abundance",
+       color = "Phylum")
+
+plot_ph
+ggplotly(plot_ph)
+```
+
+# 5. Visualization: Phylum Relative Abundance vs. Soil Moisture
+```{r}
+plot_moisture <- ggplot(env_analysis, aes(x = soil_moisture, y = relative_abundance, color = phylum)) +
+  geom_point(alpha = 0.6) +
+  geom_smooth(method = "lm", se = FALSE) +
+  scale_color_viridis_d() +
+  theme_minimal() +
+  labs(title = "Microbial Phylum Abundance vs. Soil Moisture",
+       x = "Soil Moisture content",
+       y = "Relative Abundance",
+       color = "Phylum")
+
+ggplotly(plot_moisture)
+```
+
+# 7. Summary Table for Lab Report
+```{r}
+summary_table <- env_analysis %>%
+  group_by(phylum) %>%
+  summarise(avg_abundance = mean(relative_abundance),
+            max_abundance = max(relative_abundance)) %>%
+  arrange(desc(avg_abundance))
+
+datatable(summary_table, caption = "Summary of Phylum Abundance Across Sites")
+```
